@@ -1,0 +1,9 @@
+---
+title: "preanalysis"
+output: html_document
+---
+
+```{r}
+source(here::here("R/..."))
+```
+
