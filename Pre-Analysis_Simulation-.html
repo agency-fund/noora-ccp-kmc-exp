@@ -9,9 +9,10 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
+<meta name="author" content />
 
 
-<title>preanalysis</title>
+<title>Pre-Analysis_Simulation</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -348,12 +349,15 @@ display: none;
 
 
 
-<h1 class="title toc-ignore">preanalysis</h1>
+<h1 class="title toc-ignore">Pre-Analysis_Simulation</h1>
+<h4 class="author"></h4>
 
 </div>
 
 
-<pre class="r"><code>library(tidyverse)</code></pre>
+<pre class="r"><code>knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)</code></pre>
 <pre><code>## Warning: package &#39;lubridate&#39; was built under R version 4.3.3</code></pre>
 <pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
 ## ✔ dplyr     1.1.4     ✔ readr     2.1.5
@@ -374,7 +378,6 @@ births_per_wk &lt;- 32
 n_weeks       &lt;- 10
 start_date    &lt;- as_date(&quot;2025-01-01&quot;)
 
-
 full &lt;- expand_grid(
   hospital_id   = 1:n_hospitals,
   week_num      = 1:n_weeks,
@@ -391,10 +394,8 @@ full &lt;- expand_grid(
   ) %&gt;%
   select(-birth_in_week)
 
-
 sim &lt;- full %&gt;% filter(!is.na(period))
 N   &lt;- nrow(sim)
-
 
 p_kmc &lt;- plogis(-1 + 0.5*(sim$period == 1) + 1.0*(sim$period == 2))
 sim &lt;- sim %&gt;%
@@ -416,7 +417,6 @@ sim &lt;- sim %&gt;%
                          &quot;Yes&quot;, &quot;No&quot;)
   )
 
-
 sim &lt;- sim %&gt;%
   mutate(
     delivery_type            = sample(c(&quot;Vaginal&quot;,&quot;C-section&quot;), N, TRUE, c(0.7,0.3)),
@@ -424,18 +424,54 @@ sim &lt;- sim %&gt;%
     mother_parity            = sample(c(&quot;Yes&quot;,&quot;No&quot;),        N, TRUE, c(0.4,0.6)),
     mother_age               = sample(15:45,                   N, TRUE),
     mother_education         = sample(c(&quot;None&quot;,&quot;Primary&quot;,&quot;Secondary&quot;,&quot;Higher&quot;), N, TRUE, c(0.1,0.3,0.4,0.2)),
-    mother_occupation        = sample(c(&quot;Stay at Home&quot;,&quot;Lawyer&quot;, &quot;Teacher&quot;), N, TRUE),
+    mother_occupation        = sample(c(&quot;Unemployed&quot;,&quot;Farmer&quot;,&quot;Laborer&quot;,&quot;Professional&quot;), N, TRUE),
     mother_caste             = sample(c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;,&quot;D&quot;), N, TRUE),
     household_bpl_ration_card= sample(c(&quot;Yes&quot;,&quot;No&quot;,&quot;Don’t Know&quot;), N, TRUE, c(0.5,0.3,0.2)),
     caregiver_count          = sample(1:5,                    N, TRUE)
+  )
+
+sim &lt;- sim %&gt;%
+  mutate(
+    # Vignette 1
+    v1_affective_attitude        = sample(c(&quot;Calm&quot;, &quot;Unsettled&quot;, &quot;Not sure&quot;), N, TRUE),
+    v1_instrumental_attitude     = sample(c(&quot;Helpful&quot;, &quot;Unhelpful&quot;, &quot;Not sure&quot;), N, TRUE),
+    v1_descriptive_norm          = sample(c(&quot;Most would&quot;, &quot;Few would&quot;, &quot;Not sure&quot;), N, TRUE),
+    v1_injunctive_norm           = sample(c(&quot;Supportive&quot;, &quot;Unsupportive&quot;, &quot;Not sure&quot;), N, TRUE),
+    v1_behavioral_control        = sample(c(&quot;Manageable&quot;, &quot;Too difficult&quot;, &quot;Not sure&quot;), N, TRUE),
+    v1_self_efficacy             = sample(c(&quot;Confident&quot;, &quot;Not confident&quot;, &quot;Not sure&quot;), N, TRUE),
+
+    # Vignette 2
+    v2_affective_attitude        = sample(c(&quot;Calm&quot;, &quot;Unsettled&quot;, &quot;Not sure&quot;), N, TRUE),
+    v2_instrumental_attitude     = sample(c(&quot;Helpful&quot;, &quot;Unhelpful&quot;, &quot;Not sure&quot;), N, TRUE),
+    v2_descriptive_norm          = sample(c(&quot;Most would&quot;, &quot;Few would&quot;, &quot;Not sure&quot;), N, TRUE),
+    v2_injunctive_norm           = sample(c(&quot;Supportive&quot;, &quot;Disapproving&quot;, &quot;Not sure&quot;), N, TRUE),
+    v2_behavioral_control        = sample(c(&quot;Manageable&quot;, &quot;Too difficult&quot;, &quot;Not sure&quot;), N, TRUE),
+    v2_self_efficacy             = sample(c(&quot;Confident&quot;, &quot;Not confident&quot;, &quot;Not sure&quot;), N, TRUE)
   )
 
 
 dir.create(&quot;data&quot;, showWarnings = FALSE)
 write_csv(sim, &quot;data/kmc_survey.csv&quot;)
 
-message(&quot;Simulation complete: &quot;, N, &quot; rows written to data/kmc_survey.csv&quot;)</code></pre>
-<pre><code>## Simulation complete: 1536 rows written to data/kmc_survey.csv</code></pre>
+cat(&quot;Simulation complete: &quot;, N, &quot; rows written to data/kmc_survey.csv\n&quot;)</code></pre>
+<pre><code>## Simulation complete:  1536  rows written to data/kmc_survey.csv</code></pre>
+<pre class="r"><code>head(sim)</code></pre>
+<pre><code>## # A tibble: 6 × 31
+##   hospital_id week_num delivery_date period kmc_practice kmc_location
+##         &lt;int&gt;    &lt;int&gt; &lt;date&gt;         &lt;dbl&gt;        &lt;int&gt; &lt;chr&gt;       
+## 1           1        1 2025-01-01         0            0 At facility 
+## 2           1        1 2025-01-01         0            0 At facility 
+## 3           1        1 2025-01-01         0            0 At facility 
+## 4           1        1 2025-01-01         0            0 At facility 
+## 5           1        1 2025-01-01         0            1 At facility 
+## 6           1        1 2025-01-01         0            0 At facility 
+## # ℹ 25 more variables: kmc_bare_chest_understanding &lt;chr&gt;,
+## #   kmc_minimal_clothing_understanding &lt;chr&gt;, kmc_duration &lt;chr&gt;,
+## #   RES_signup &lt;chr&gt;, delivery_type &lt;chr&gt;, baby_sex &lt;chr&gt;, mother_parity &lt;chr&gt;,
+## #   mother_age &lt;int&gt;, mother_education &lt;chr&gt;, mother_occupation &lt;chr&gt;,
+## #   mother_caste &lt;chr&gt;, household_bpl_ration_card &lt;chr&gt;, caregiver_count &lt;int&gt;,
+## #   v1_affective_attitude &lt;chr&gt;, v1_instrumental_attitude &lt;chr&gt;,
+## #   v1_descriptive_norm &lt;chr&gt;, v1_injunctive_norm &lt;chr&gt;, …</code></pre>
 
 
 

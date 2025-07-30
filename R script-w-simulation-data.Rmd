@@ -1,11 +1,13 @@
 ---
-title: "R script-noora"
+title: "R script-w-simulation-data"
 author: 
 date: 
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
@@ -139,7 +141,4 @@ all_results <- c(
 )
 
 walk2(all_results, names(all_results), ~ write_csv(.x, paste0("results/", .y, "_results.csv")))
-
-
 ```
-
