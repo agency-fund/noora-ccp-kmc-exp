@@ -4,8 +4,78 @@ output: html_document
 ---
 
 ```{r}
-source(here::here("R/..."))
 
-# add pre analysis codes here
+library(tidyverse)
+library(lubridate)
+
+set.seed(1234)
+
+n_hospitals   <- 8
+births_per_wk <- 32
+n_weeks       <- 10
+start_date    <- as_date("2025-01-01")
+
+
+full <- expand_grid(
+  hospital_id   = 1:n_hospitals,
+  week_num      = 1:n_weeks,
+  birth_in_week = 1:births_per_wk
+) %>%
+  mutate(
+    delivery_date = start_date + weeks(week_num - 1),
+    period = case_when(
+      week_num %in% 1:2  ~ 0,
+      week_num %in% 5:6  ~ 1,
+      week_num %in% 9:10 ~ 2,
+      TRUE               ~ NA_real_
+    )
+  ) %>%
+  select(-birth_in_week)
+
+
+sim <- full %>% filter(!is.na(period))
+N   <- nrow(sim)
+
+
+p_kmc <- plogis(-1 + 0.5*(sim$period == 1) + 1.0*(sim$period == 2))
+sim <- sim %>%
+  mutate(
+    kmc_practice = rbinom(N, 1, p_kmc),
+    kmc_location = if_else(runif(N) < (0.2 + 0.1*(period == 1)),
+                           "At home", "At facility"),
+    kmc_bare_chest_understanding =
+      if_else(runif(N) < 0.6 + 0.2*(period > 0),
+              "Understanding is correct", "Understanding is incorrect"),
+    kmc_minimal_clothing_understanding =
+      if_else(runif(N) < 0.5 + 0.15*(period > 0),
+              "Understanding is correct", "Understanding is incorrect"),
+    kmc_duration = sample(
+      c("1-10 minutes","11-20 minutes","21-29 minutes","30 minutes","More than 30 minutes"),
+      N, replace = TRUE
+    ),
+    RES_signup = if_else(rbinom(N, 1, plogis(-2 + 0.7*(period == 2))) == 1,
+                         "Yes", "No")
+  )
+
+
+sim <- sim %>%
+  mutate(
+    delivery_type            = sample(c("Vaginal","C-section"), N, TRUE, c(0.7,0.3)),
+    baby_sex                 = sample(c("M","F"),           N, TRUE),
+    mother_parity            = sample(c("Yes","No"),        N, TRUE, c(0.4,0.6)),
+    mother_age               = sample(15:45,                   N, TRUE),
+    mother_education         = sample(c("None","Primary","Secondary","Higher"), N, TRUE, c(0.1,0.3,0.4,0.2)),
+    mother_occupation        = sample(c("Stay at Home","Lawyer", "Teacher"), N, TRUE),
+    mother_caste             = sample(c("A","B","C","D"), N, TRUE),
+    household_bpl_ration_card= sample(c("Yes","No","Don’t Know"), N, TRUE, c(0.5,0.3,0.2)),
+    caregiver_count          = sample(1:5,                    N, TRUE)
+  )
+
+
+dir.create("data", showWarnings = FALSE)
+write_csv(sim, "data/kmc_survey.csv")
+
+message("Simulation complete: ", N, " rows written to data/kmc_survey.csv")
+
 ```
 
