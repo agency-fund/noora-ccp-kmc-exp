@@ -1,0 +1,143 @@
+---
+title: "R-script-w-simulation-dataset"
+author: 
+date: 
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(sandwich)
+library(lmtest)
+library(broom)
+library(psych)
+
+data <- read_csv("data/kmc_survey.csv",
+                 col_types = cols(
+                   delivery_date = col_date(format = "%Y-%m-%d")
+                 ))
+
+start_date <- as_date("2025-01-01")
+
+data <- data %>%
+  mutate(
+    study_week = 1 + floor(as.numeric(delivery_date - start_date) / 7),
+    period     = case_when(
+      study_week %in% 1:2  ~ 0,
+      study_week %in% 5:6  ~ 1,
+      study_week %in% 9:10 ~ 2,
+      TRUE                 ~ NA_real_
+    ),
+    period_f    = factor(period, levels = 0:2, labels = c("Control","Tx1","Tx2"))
+  )
+
+data <- data %>%
+  mutate(
+    any_kmc_home           = if_else(str_detect(kmc_location, "At home"), 1L, 0L),
+    kmc_practice_bin       = if_else(kmc_practice == "Yes", 1L, 0L),
+    kmc_bare_chest_correct = as.integer(kmc_bare_chest_understanding == "Understanding is correct"),
+    kmc_min_cloth_correct  = as.integer(kmc_minimal_clothing_understanding == "Understanding is correct"),
+    kmc_knowledge_score    = kmc_bare_chest_correct + kmc_min_cloth_correct,
+    kmc_duration_min       = case_when(
+      kmc_duration == "1-10 minutes"        ~ 5,
+      kmc_duration == "11-20 minutes"       ~ 15,
+      kmc_duration == "21-29 minutes"       ~ 25,
+      kmc_duration == "30 minutes"          ~ 30,
+      str_detect(kmc_duration, "More than") ~ as.numeric(str_extract(kmc_duration, "\\d+")),
+      TRUE                                   ~ NA_real_
+    ),
+    kmc_duration_hrs       = kmc_duration_min / 60,
+    res_signup_bin         = if_else(RES_signup == "Yes", 1L, 0L)
+  )
+
+if (all(c(
+  "v1_affective_attitude", "v2_affective_attitude",
+  "v1_instrumental_attitude", "v2_instrumental_attitude",
+  "v1_descriptive_norm", "v2_descriptive_norm",
+  "v1_injunctive_norm", "v2_injunctive_norm",
+  "v1_behavioral_control", "v2_behavioral_control",
+  "v1_self_efficacy", "v2_self_efficacy"
+) %in% names(data))) {
+  data <- data %>%
+    mutate(
+      affective_attitude_score = rowMeans(cbind(v1_affective_attitude == "Calm", v2_affective_attitude == "Calm"), na.rm = TRUE),
+      instrumental_attitude_score = rowMeans(cbind(v1_instrumental_attitude == "Helpful", v2_instrumental_attitude == "Helpful"), na.rm = TRUE),
+      descriptive_norms_score = rowMeans(cbind(v1_descriptive_norm == "Most would", v2_descriptive_norm == "Most would"), na.rm = TRUE),
+      injunctive_norms_score = rowMeans(cbind(v1_injunctive_norm == "Supportive", v2_injunctive_norm == "Supportive"), na.rm = TRUE),
+      control_score = rowMeans(cbind(v1_behavioral_control == "Manageable", v2_behavioral_control == "Manageable"), na.rm = TRUE),
+      self_efficacy_score = rowMeans(cbind(v1_self_efficacy == "Confident", v2_self_efficacy == "Confident"), na.rm = TRUE)
+    )
+}
+
+data <- data %>%
+  mutate(
+    delivery_type_f = factor(delivery_type),
+    baby_sex_f      = factor(baby_sex),
+    parity_f        = factor(mother_parity, levels = c("Yes","No")),
+    education_f     = factor(mother_education),
+    occupation_f    = factor(mother_occupation),
+    caste_f         = factor(mother_caste),
+    bpl_card_f      = factor(household_bpl_ration_card, levels = c("Yes","No","Don’t Know"))
+  )
+
+covariate_formula <- paste(
+  "mother_age + delivery_type_f + baby_sex_f + parity_f +",
+  "education_f + occupation_f + caste_f + bpl_card_f + caregiver_count"
+)
+
+cluster_coeftest <- function(model) {
+  vc <- vcovCL(model, cluster = model$data$hospital_id)
+  coeftest(model, vcov = vc)
+}
+
+safe_tidy <- function(model, exponentiate = FALSE) {
+  tryCatch(
+    tidy(model, conf.int = TRUE, exponentiate = exponentiate),
+    error = function(e) tidy(model, conf.int = FALSE, exponentiate = exponentiate)
+  )
+}
+
+dir.create("results", showWarnings = FALSE)
+
+
+m1 <- glm(as.formula(paste("kmc_practice_bin ~ period_f +", covariate_formula)),
+          family = binomial(), data = data)
+res1 <- cluster_coeftest(m1)
+
+m2 <- lm(as.formula(paste("kmc_duration_hrs ~ period_f +", covariate_formula)), data = data)
+res2 <- cluster_coeftest(m2)
+
+m3 <- lm(as.formula(paste("kmc_knowledge_score ~ period_f +", covariate_formula)), data = data)
+res3 <- cluster_coeftest(m3)
+
+m4 <- glm(as.formula(paste("res_signup_bin ~ period_f +", covariate_formula)),
+          family = binomial(), data = data)
+res4 <- cluster_coeftest(m4)
+
+
+sec_models <- list(
+  affective    = lm(as.formula(paste("affective_attitude_score ~ period_f +", covariate_formula)), data = data),
+  instrumental = lm(as.formula(paste("instrumental_attitude_score ~ period_f +", covariate_formula)), data = data),
+  desc_norms   = lm(as.formula(paste("descriptive_norms_score ~ period_f +", covariate_formula)), data = data),
+  inj_norms    = lm(as.formula(paste("injunctive_norms_score ~ period_f +", covariate_formula)), data = data),
+  control      = lm(as.formula(paste("control_score ~ period_f +", covariate_formula)), data = data),
+  self_efficacy= lm(as.formula(paste("self_efficacy_score ~ period_f +", covariate_formula)), data = data)
+)
+
+res_sec <- map(sec_models, cluster_coeftest)
+
+
+all_results <- c(
+  list(primary_kmc_practice = safe_tidy(m1, exponentiate=TRUE),
+       primary_duration     = safe_tidy(m2),
+       primary_knowledge    = safe_tidy(m3),
+       primary_res_signup   = safe_tidy(m4, exponentiate=TRUE)),
+  map(sec_models, ~ safe_tidy(.x))
+)
+
+walk2(all_results, names(all_results), ~ write_csv(.x, paste0("results/", .y, "_results.csv")))
+```
+
