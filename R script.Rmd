@@ -140,6 +140,5 @@ all_results <- c(
 
 walk2(all_results, names(all_results), ~ write_csv(.x, paste0("results/", .y, "_results.csv")))
 
-
 ```
 
